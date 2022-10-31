@@ -12,21 +12,31 @@ Usage Example
 
 .. code-block:: python
 
+    # my_module.py
     from conman.logger import get_logger
 
     logger = get_logger(__name__)
 
-    def log_info():
-        logger.info("Log an info message!)
-        ...
+    def magic():
+        logger.info('Return the magic number')
+        return 42
+
+    # app.py
+    import logging
+    import my_module
+    from conman.logger import basic_config
+
+    logger = basic_config(name='app.main', level=logging.INFO)
+
+    def main():
+        logger.debug('Message to display in DEBUG mode')
+        magic_number = my_module.magic()
+        return magic_number * 2
 
 The objects from the builtin ``logging`` module are monkey-patched to
 achieve this level of modularity. This module is also in responsible
 of using colours to represent the severity of the logging levels on the
 terminal.
-
-Last updated on: October 28, 2022
-Last udpated by: Akshay Mestry (XAMES3) <xa@mes3.dev>
 """
 
 from __future__ import annotations
@@ -357,9 +367,9 @@ def get_logger(module: str) -> logging.Logger:
 
         logger = get_logger(__name__)
 
-        def log_info():
-            logger.info("Log an info message!)
-            ...
+        def magic():
+            logger.info('Return the magic number')
+            return 42
 
     This function is most useful for the intermediate modules which
     want to perform logging at the module level as this function returns
