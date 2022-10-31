@@ -37,6 +37,9 @@ The objects from the builtin ``logging`` module are monkey-patched to
 achieve this level of modularity. This module is also in responsible
 of using colours to represent the severity of the logging levels on the
 terminal.
+
+.. versionchanged:: 0.1.0
+    Update log parser with shorter help messages and minor refactoring.
 """
 
 from __future__ import annotations
@@ -481,50 +484,55 @@ def basic_config(
     return logger
 
 
-def configure_logger(
+def add_logging_options(
     parser: argparse.ArgumentParser | argparse._ActionsContainer,
 ) -> None:
-    """Parser for configuring the logger."""
-    logger = parser.add_argument_group("Logging Options")
-    logger.add_argument(
+    """Add options for logging.
+
+    This function accepts a parser object, preferrably provide
+    the ``main_parser`` instance.
+
+    :param parser: Parser instance to which the logging options are
+                   supposed to be added to.
+
+    .. versionchanged:: 0.1.0
+        Update function with shorter help messages and minor refactor.
+    """
+    options = parser.add_argument_group("Logging Options")
+    options.add_argument(
         "--log-format",
         help="Logging message string format.",
         metavar="<format>",
     )
-    logger.add_argument(
+    options.add_argument(
         "--log-datefmt",
         default=_iso8601,
         help="Logging message datetime format (Default: %(default)s).",
         metavar="<format>",
     )
-    logger.add_argument(
+    options.add_argument(
         "--log-level",
         default=logging.INFO,
-        help=(
-            "Minimum logging level for the message (Default: %(default)s). "
-            "The logging level can be overridden by setting the environment "
-            "variable CONMAN_LOGGING_LEVEL (corresponding to DEBUG, INFO, "
-            "WARNING, ERROR and CRITICAL logging levels)."
-        ),
+        help="Minimum logging level for the message (Default: %(default)s).",
         metavar="<level>",
     )
-    logger.add_argument(
+    options.add_argument(
         "--log-path",
         default=_logfile,
-        help=(
-            "Path for logging and maintaining a historical log "
-            "(Default: %(default)s)."
-        ),
+        help="Path for logging (Default: %(default)s).",
         metavar="<path>",
     )
-    logger.add_argument(
+    options.add_argument(
         "--max-bytes",
         default=10_000_000,
-        help="Output log file size in bytes (Default: %(default)s).",
+        help=(
+            "Output log file size in bytes (Default: "
+            f"{10_000_000 / (1 << 20):,.0f} MB)."
+        ),
         metavar="<bytes>",
         type=int,
     )
-    logger.add_argument(
+    options.add_argument(
         "--backup-count",
         default=10,
         help=(
@@ -534,18 +542,11 @@ def configure_logger(
         metavar="<count>",
         type=int,
     )
-    logger.add_argument(
+    options.add_argument(
         "--no-output",
         action="store_true",
-        help=(
-            "Skips logging the I/O from stdin, stdout and stderr to the "
-            "log file. This behavior can be overridden by setting the "
-            "environment variable CONMAN_SKIP_LOGGING to TRUE. If this is "
-            "set, it will carry more precedence."
-        ),
+        help="Skips logging of stdout and stderr to the log file.",
     )
-    logger.add_argument(
-        "--no-color",
-        action="store_false",
-        help="Suppress colored output.",
+    options.add_argument(
+        "--no-color", action="store_false", help="Suppress colored output."
     )
