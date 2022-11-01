@@ -1,15 +1,27 @@
 """ConMan's command line utilities.
 
 This module hosts the main argument parser object which allows user to
-interact with ConMan's services over the command line.
+interact with ConMan's APIs over the command line.
 
 Usage Example
 -------------
 
-    $ python3 -c "import conman; conman.cli.main()" --help
+    .. code-block:: console
 
-Last updated on: October 30, 2022
-Last udpated by: Akshay Mestry (XAMES3) <xa@mes3.dev>
+        $ python3 -c "import conman; conman.cli.main()" --help
+
+.. versionadded:: 0.1.1
+    Fix text wrapping on smaller terminals by introducing a custom text
+    wrapper to wrap long text messages.
+
+.. versionadded:: 0.1.0
+    Add support for dynamic version parsing and perform minor refactor
+    of verbosity message.
+    Add support for ``--help`` based help function.
+
+.. versionchanged:: 0.1.0
+    Refactor main parser's description to fit within terminal width. Use
+    new function names.
 """
 
 from __future__ import annotations
@@ -21,20 +33,18 @@ import sys
 import textwrap
 import typing as t
 
-# from . import __version__ as version
+from . import __version__ as version
+from .logger import add_logging_options
 from .logger import basic_config
-from .logger import configure_logger
 from .main import configure_docker_run
 from .main import run_container
 
 # Maximum terminal width which allows hard-wrapping of the command line
 # messages and descriptions over a set length. By default, the total
 # command line width is used for the messages but for the smaller
-# terminal widths, it automatically soft-wraps the messages. Hence, we
-# define a maximum terminal width of 79 characters to show and interact
-# with the command line components.
-_terminal_width: int = shutil.get_terminal_size().columns - 2
-_terminal_width = _terminal_width if _terminal_width < 79 else 79
+# terminal widths, it automatically soft-wraps the messages.
+_width: int = shutil.get_terminal_size().columns - 2
+_width = _width if _width <= 78 else 78
 
 
 class _ConManArgumentFormatter(argparse.RawTextHelpFormatter):
@@ -69,6 +79,8 @@ class _ConManArgumentFormatter(argparse.RawTextHelpFormatter):
         are venturing into the undocumented private API of the module,
         and your code may break in future updates.
 
+    .. versionadded:: 0.1.1
+        Fix text wrapping on smaller terminals.
     """
 
     def __init__(
@@ -99,9 +111,13 @@ class _ConManArgumentFormatter(argparse.RawTextHelpFormatter):
     # See https://stackoverflow.com/a/35925919/14316408 for adding the
     # line wrapping logic for the description.
     def _split_lines(self, text: str, _: int) -> list[str]:
-        """Unwrap the lines to width of the terminal."""
+        """Unwrap the lines to width of the terminal.
+
+        .. versionadded:: 0.1.1
+            Fix text wrapping on smaller terminals.
+        """
         text = self._whitespace_matcher.sub(" ", text).strip()
-        return textwrap.wrap(text, _terminal_width)
+        return textwrap.wrap(text, _width - 25)
 
     # See https://stackoverflow.com/a/13429281/14316408 for hiding the
     # metavar is subcommand listing.
@@ -153,6 +169,36 @@ def _get_prog_name() -> str:
 prog = _get_prog_name()
 
 
+class _TextWrapper(textwrap.TextWrapper):
+    """Custom text wrapper to fix the linebreaks in the long texts.
+
+    .. code-block:: python
+
+        from conman.cli import _TextWrapper
+
+        wrapper = _TextWrapper(width=80)
+        wrapper.fill('Long text message more than 80 characters...')
+
+    .. versionadded:: 0.1.1
+        Added support for custom text wrapper.
+    """
+
+    # See https://stackoverflow.com/a/45287550/14316408 for help on
+    # textwrapping.
+    def wrap(self, text: str) -> list[str]:
+        """Reformat text wrapping."""
+        split_text = text.split("\n")
+        lines = [
+            line
+            for paragraph in split_text
+            for line in textwrap.TextWrapper.wrap(self, paragraph)
+        ]
+        return lines
+
+
+_textwrap = _TextWrapper(width=_width)
+
+
 def subcommand(
     subparsers: argparse._SubParsersAction,
     parents: list[argparse.ArgumentParser],
@@ -164,7 +210,7 @@ def subcommand(
     callback: t.Callable[[argparse.Namespace, list[str]], t.NoReturn],
     configure: t.Callable[[argparse.ArgumentParser], None] = None,
 ) -> None:
-    """Create subparser or positional argument object.
+    r"""Create subparser or positional argument object.
 
     This function creates new subcommands in the main argument parser
     instance.
@@ -182,16 +228,21 @@ def subcommand(
     :param description: Description for the subcommand.
     :param callback: Primary subcommand callback function reference.
     :param configure: Parser configuration objects, defaults to ``None``.
+
+    .. versionadded:: 0.1.1
+        Added support for wrapping long description, usage and help
+        texts instead of forcing ``\n`` to unnaturally break the lines
+        into desirable width.
     """
     parser = subparsers.add_parser(
         command,
-        usage=usage,
+        parents=parents,
+        usage=_textwrap.fill(usage),
+        description=_textwrap.fill(description),
+        help=_textwrap.fill(help),
+        add_help=False,
         formatter_class=_ConManArgumentFormatter,
         conflict_handler="resolve",
-        description=description,
-        help=help,
-        parents=parents,
-        add_help=False,
     )
     if configure:
         configure(parser)
@@ -199,47 +250,60 @@ def subcommand(
     parser.set_defaults(callback=callback)
 
 
-def configure_general(
+def add_general_options(
     parser: argparse.ArgumentParser | argparse._ActionsContainer,
 ) -> None:
-    """Add general options to the parser object."""
-    parser = parser.add_argument_group("General Options")
-    parser.add_argument(
+    """Add general options to the parser object.
+
+    :param parser: Parser instance to which the general options are
+                   supposed to be added to.
+
+    .. versionadded:: 0.1.0
+        Add support for dynamic version parsing and perform minor
+        refactor of verbosity message.
+    """
+    options = parser.add_argument_group("General Options")
+    options.add_argument(
         "--help",
         action="help",
         default=argparse.SUPPRESS,
         help="Show this help message.",
     )
-    parser.add_argument(
+    options.add_argument(
         "-v",
         "--verbose",
         action="count",
         default=0,
         help=(
             "Increase the logging verbosity. This option is additive, and "
-            "can be used twice. The logging verbosity can be overridden by "
-            "setting CONMAN_LOGGING_LEVEL (corresponding to "
-            "DEBUG, INFO, WARNING, ERROR and CRITICAL logging levels)."
+            "can be used twice."
         ),
     )
     # See https://stackoverflow.com/a/8521644/812183 for adding version
     # specific argument to the parser.
-    parser.add_argument(
+    options.add_argument(
         "-V",
         "--version",
         action="version",
-        version=f"ConMan v0.0.1",
+        version=f"ConMan v{version}",
         help="Show ConMan's installed version and exit.",
     )
 
 
-def _create_main_parser() -> argparse.ArgumentParser:
+def create_main_parser() -> argparse.ArgumentParser:
     """Create and return the main parser object for ConMan's CLI.
 
     It powers the main argument parser for the ConMan module.
 
     :return: ArgumentParser object which stores all the properties of
              the main argument parser.
+
+    .. versionadded:: 0.1.1
+        Add support for text wrapping long text messages.
+
+    .. versionchanged:: 0.1.0
+        Refactor main parser's description to fit within terminal width.
+        Use new function names.
     """
     main_parser = argparse.ArgumentParser(
         prog=prog,
@@ -247,25 +311,24 @@ def _create_main_parser() -> argparse.ArgumentParser:
         formatter_class=_ConManArgumentFormatter,
         conflict_handler="resolve",
         add_help=False,
-        description=(
+        description=_textwrap.fill(
             "ConMan: An easy and flexible Docker based container manager.\n\n"
             "ConMan is an open-source project that is available for the Unix "
             "platforms which is currently maintained on GitHub. ConMan is a "
             "python based wrapper for managing docker based containers and "
-            "images on your Unix system."
+            "images on your Unix system.",
         ),
-        epilog=(
-            'For specific information about a particular command, run "'
-            'conman <command> --help".\nRead complete documentation at: '
-            "https://github.com/xames3/conman\n\nCopyright (c) 2022 "
-            "Akshay Mestry (XAMES3). All rights reserved."
+        epilog=_textwrap.fill(
+            'For information about a particular command, run "conman '
+            '<command> --help". Read complete documentation at: '
+            "https://github.com/xames3/conman.",
         ),
     )
     main_parser._positionals.title = "Commands"
     parent_parser = argparse.ArgumentParser(add_help=False)
     for parser in (main_parser, parent_parser):
-        configure_logger(parser)
-        configure_general(parser)
+        add_logging_options(parser)
+        add_general_options(parser)
     subparsers = main_parser.add_subparsers(prog=prog)
     parents = [parent_parser]
     subcommand(
@@ -274,15 +337,15 @@ def _create_main_parser() -> argparse.ArgumentParser:
         command="run",
         title="Run Options",
         usage=(
-            "%(prog)s run [options] --image <image> --name <name> ...\n "
-            "%(prog)s run [options] --image <image> ..."
+            "%(prog)s [options] --image <image> --name <name> ...\n "
+            "%(prog)s [options] --image <image> ..."
         ),
         description=(
-            "Run docker containers.\n\nThis command performs ``docker run`` "
-            "and/or ``docker start`` under the hood to run a\nnew container "
+            "Run docker containers.\n\nThis command performs `docker run` "
+            "and/or `docker start` under the hood to run a new container "
             "or start an existing one respectively. The started containers "
-            "have attached\nand open STDIN, STDOUT or STDERR by default along "
-            "with pseudo-TTY allocated for the\nuser's interaction."
+            "have attached and open STDIN, STDOUT or STDERR by default along "
+            "with pseudo-TTY allocated for the user's interaction."
         ),
         help="Run docker containers.",
         configure=configure_docker_run,
@@ -299,8 +362,11 @@ def main() -> int:
     for ConMan.
 
     Run as standalone python application.
+
+    .. versionadded:: 0.1.0
+        Add support for ``--help`` based help function.
     """
-    parser = _create_main_parser()
+    parser = create_main_parser()
     args, rest = parser.parse_known_args()
     log_options = {
         "fmt": args.log_format,
@@ -315,6 +381,12 @@ def main() -> int:
     logger = basic_config(**log_options)
     logger.debug(f"Python version: {sys.version}")
     logger.debug(f"Start command for ConMan: {' '.join(sys.argv)}")
+    if len(rest) == 1 and "-h" in rest:
+        # This is to avoid any conflicts with docker's existing command
+        # line arguments. By default, a few of the docker commands
+        # use ``-h`` for their internal working.
+        sys.stderr.write("ConMan doesn't support -h, did you mean --help?\n")
+        return 1
     if hasattr(args, "callback"):
         try:
             args.callback(args, rest)
