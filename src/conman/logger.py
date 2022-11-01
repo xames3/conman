@@ -38,6 +38,10 @@ achieve this level of modularity. This module is also in responsible
 of using colours to represent the severity of the logging levels on the
 terminal.
 
+.. deprecated:: 0.1.1
+    Logging option defaults are now deprecated for datefmt, log level
+    and log file path and will not show the default values.
+
 .. versionchanged:: 0.1.0
     Update log parser with shorter help messages and minor refactoring.
 """
@@ -495,6 +499,10 @@ def add_logging_options(
     :param parser: Parser instance to which the logging options are
                    supposed to be added to.
 
+    .. deprecated:: 0.1.1
+        Logging option defaults are now deprecated for datefmt, log
+        level and log file path and will not show the default values.
+
     .. versionchanged:: 0.1.0
         Update function with shorter help messages and minor refactor.
     """
@@ -506,39 +514,30 @@ def add_logging_options(
     )
     options.add_argument(
         "--log-datefmt",
-        default=_iso8601,
-        help="Logging message datetime format (Default: %(default)s).",
+        help="Logging message datetime format.",
         metavar="<format>",
     )
     options.add_argument(
         "--log-level",
-        default=logging.INFO,
-        help="Minimum logging level for the message (Default: %(default)s).",
+        help="Minimum logging level for the message.",
         metavar="<level>",
     )
     options.add_argument(
         "--log-path",
-        default=_logfile,
-        help="Path for logging (Default: %(default)s).",
+        help="Absolute path for storing the output log file.",
         metavar="<path>",
     )
     options.add_argument(
         "--max-bytes",
         default=10_000_000,
-        help=(
-            "Output log file size in bytes (Default: "
-            f"{10_000_000 / (1 << 20):,.0f} MB)."
-        ),
+        help="Output log file size in bytes.",
         metavar="<bytes>",
         type=int,
     )
     options.add_argument(
         "--backup-count",
         default=10,
-        help=(
-            "Maximum number of files to archive before discarding "
-            "(Default: %(default)s)."
-        ),
+        help="Maximum number of files to archive before discarding.",
         metavar="<count>",
         type=int,
     )
@@ -548,5 +547,7 @@ def add_logging_options(
         help="Skips logging of stdout and stderr to the log file.",
     )
     options.add_argument(
-        "--no-color", action="store_false", help="Suppress colored output."
+        "--no-color",
+        action="store_false",
+        help="Suppress colored output.",
     )
