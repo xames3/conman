@@ -85,7 +85,7 @@ _logging_level_map: dict[str, int] = {
     "DEBUG": 10,
     "NOTSET": 00,
 }
-_possible_truthy_values: frozenset = frozenset(
+_possible_truthy_values: frozenset[str | int] = frozenset(
     ["TRUE", "T", "True", "true", "t", 1, "1"]
 )
 
@@ -333,7 +333,7 @@ class _Formatter(logging.Formatter):
         return msg
 
 
-class _StreamHandler(logging.StreamHandler):
+class _StreamHandler(logging.StreamHandler[t.IO[str]]):
     """A StreamHandler derivative which adds an inspection of a TTY
     interface to the stream.
     """

@@ -39,6 +39,8 @@ from .logger import basic_config
 from .main import configure_docker_run
 from .main import run_container
 
+_T = t.TypeVar("_T", bound=argparse.ArgumentParser)
+
 # Maximum terminal width which allows hard-wrapping of the command line
 # messages and descriptions over a set length. By default, the total
 # command line width is used for the messages but for the smaller
@@ -200,7 +202,7 @@ _textwrap = _TextWrapper(width=_width)
 
 
 def subcommand(
-    subparsers: argparse._SubParsersAction,
+    subparsers: argparse._SubParsersAction[_T],
     parents: list[argparse.ArgumentParser],
     command: str,
     title: str,
@@ -208,7 +210,7 @@ def subcommand(
     help: str,
     description: str,
     callback: t.Callable[[argparse.Namespace, list[str]], t.NoReturn],
-    configure: t.Callable[[argparse.ArgumentParser], None] = None,
+    configure: t.Optional[t.Callable[[argparse.ArgumentParser], None]] = None,
 ) -> None:
     r"""Create subparser or positional argument object.
 
