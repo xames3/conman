@@ -1,13 +1,10 @@
-"""ConMan setup.
+"""ConMan's setup.
 
-This will install the ``conman`` package in the python 3.7+ environment.
+This will install the ``conman`` package in a python 3.7+ environment.
 Before proceeding, please ensure you have a virtual environment setup &
 running.
 
 See https://github.com/xames3/conman/ for more help.
-
-.. versionadded:: 0.0.2
-    Added typing support for ``pkg_resources``.
 """
 
 import platform
