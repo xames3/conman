@@ -1,14 +1,22 @@
-"""ConMan's command line utilities.
+"""\
+ConMan command line API
+=======================
 
-This module hosts the main argument parser object which allows user to
-interact with ConMan's APIs over the command line.
+ConMan's command line utilities.
 
-Usage Example
--------------
+The ``conman.cli`` module hosts the main argument parser object which
+allows user to interact with ConMan's APIs over the command line.
+
+Usage Example::
+---------------
 
     .. code-block:: console
 
         $ python3 -c "import conman; conman.cli.main()" --help
+
+.. versionadded:: 1.0.0
+    Added support for abstracting ConMan application and docker commands
+    through implementing OO programming and design pattern strategies.
 
 .. versionadded:: 0.1.1
     Fix text wrapping on smaller terminals by introducing a custom text
@@ -34,19 +42,17 @@ import textwrap
 import typing as t
 
 from . import __version__ as version
+from .core import ConMan
 from .logger import add_logging_options
-from .logger import basic_config
-from .main import configure_docker_run
-from .main import run_container
 
-_T = t.TypeVar("_T", bound=argparse.ArgumentParser)
+F = t.TypeVar("F", bound=argparse.ArgumentParser)
 
 # Maximum terminal width which allows hard-wrapping of the command line
 # messages and descriptions over a set length. By default, the total
 # command line width is used for the messages but for the smaller
 # terminal widths, it automatically soft-wraps the messages.
 _width: int = shutil.get_terminal_size().columns - 2
-_width = _width if _width <= 78 else 78
+_width = _width if _width <= 80 else 80
 
 
 class _ConManArgumentFormatter(argparse.RawTextHelpFormatter):
@@ -65,6 +71,15 @@ class _ConManArgumentFormatter(argparse.RawTextHelpFormatter):
         parser = argparse.ArgumentParser(formatter_class=fmt)
         args = parser.parse_args()
 
+    .. note::
+
+        Be warned, by accessing names starting with an underscore you
+        are venturing into the undocumented private API of the module,
+        and your code may break in future updates.
+
+    .. versionadded:: 0.1.1
+        Fix text wrapping on smaller terminals.
+
     :param prog: Program name which acts as an entrypoint.
     :param indent_increment: Default indentation for the following
                              command line text, defaults to ``2``.
@@ -74,15 +89,6 @@ class _ConManArgumentFormatter(argparse.RawTextHelpFormatter):
                               instead of 24.
     :param width: Maximum width of the command line messages, defaults
                   to ``None``.
-
-    .. note::
-
-        Be warned, by accessing names starting with an underscore you
-        are venturing into the undocumented private API of the module,
-        and your code may break in future updates.
-
-    .. versionadded:: 0.1.1
-        Fix text wrapping on smaller terminals.
     """
 
     def __init__(
@@ -115,11 +121,14 @@ class _ConManArgumentFormatter(argparse.RawTextHelpFormatter):
     def _split_lines(self, text: str, _: int) -> list[str]:
         """Unwrap the lines to width of the terminal.
 
+        .. versionchanged:: 1.0.0
+            Revert back text wrapping on smaller terminals.
+
         .. versionadded:: 0.1.1
             Fix text wrapping on smaller terminals.
         """
         text = self._whitespace_matcher.sub(" ", text).strip()
-        return textwrap.wrap(text, _width - 25)
+        return textwrap.wrap(text, _width)
 
     # See https://stackoverflow.com/a/13429281/14316408 for hiding the
     # metavar is subcommand listing.
@@ -202,54 +211,46 @@ _textwrap = _TextWrapper(width=_width)
 
 
 def subcommand(
-    subparsers: argparse._SubParsersAction[_T],
-    parents: list[argparse.ArgumentParser],
+    app: ConMan,
+    subparsers: argparse._SubParsersAction[F],
+    parents: argparse.ArgumentParser,
     command: str,
-    title: str,
-    usage: str,
-    help: str,
-    description: str,
-    callback: t.Callable[[argparse.Namespace, list[str]], t.NoReturn],
-    configure: t.Optional[t.Callable[[argparse.ArgumentParser], None]] = None,
 ) -> None:
     r"""Create subparser or positional argument object.
 
     This function creates new subcommands in the main argument parser
     instance.
 
-    :param subparsers: Subparser instance action which we are going to
-                       attach to.
-    :param parents: List of parent argument parser instance. Usually
-                    this is nothing but another parser instance. Parent
-                    parsers, needed to ensure tree structure in
-                    argparse.
-    :param command: Subcommand instruction.
-    :param title: Title for the optional arguments.
-    :param usage: Usage message for the subcommand.
-    :param help: Help text for the subcommand.
-    :param description: Description for the subcommand.
-    :param callback: Primary subcommand callback function reference.
-    :param configure: Parser configuration objects, defaults to ``None``.
+    .. deprecated:: 1.0.0
+        Deprecated use of redundant arguments as the functionality is
+        now natively supported by the application instance.
 
     .. versionadded:: 0.1.1
         Added support for wrapping long description, usage and help
         texts instead of forcing ``\n`` to unnaturally break the lines
         into desirable width.
+
+    :param app: ConMan application instance.
+    :param subparsers: Subparser instance action which we are going to
+                       attach to.
+    :param parents: Parent argument parser instance. Usually this is
+                    nothing but another parser instance. Parent parsers,
+                    needed to ensure tree structure in argparse.
+    :param command: Subcommand instruction.
     """
+    instance = getattr(app, command)
     parser = subparsers.add_parser(
         command,
-        parents=parents,
-        usage=_textwrap.fill(usage),
-        description=_textwrap.fill(description),
-        help=_textwrap.fill(help),
+        parents=[parents],
+        usage=_textwrap.fill(instance.usage),
+        description=_textwrap.fill(instance.description),
+        help=_textwrap.fill(instance.help),
         add_help=False,
         formatter_class=_ConManArgumentFormatter,
         conflict_handler="resolve",
     )
-    if configure:
-        configure(parser)
-    parser._optionals.title = title
-    parser.set_defaults(callback=callback)
+    instance.add_options(parser)
+    parser.set_defaults(callback=instance)
 
 
 def add_general_options(
@@ -257,12 +258,12 @@ def add_general_options(
 ) -> None:
     """Add general options to the parser object.
 
-    :param parser: Parser instance to which the general options are
-                   supposed to be added to.
-
     .. versionadded:: 0.1.0
         Add support for dynamic version parsing and perform minor
         refactor of verbosity message.
+
+    :param parser: Parser instance to which the general options are
+                   supposed to be added to.
     """
     options = parser.add_argument_group("General Options")
     options.add_argument(
@@ -276,7 +277,7 @@ def add_general_options(
         "--verbose",
         action="count",
         default=0,
-        help=(
+        help=_textwrap.fill(
             "Increase the logging verbosity. This option is additive, and "
             "can be used twice."
         ),
@@ -292,13 +293,13 @@ def add_general_options(
     )
 
 
-def create_main_parser() -> argparse.ArgumentParser:
+def create_main_parser(app: ConMan) -> argparse.ArgumentParser:
     """Create and return the main parser object for ConMan's CLI.
 
     It powers the main argument parser for the ConMan module.
 
-    :return: ArgumentParser object which stores all the properties of
-             the main argument parser.
+    .. versionadded:: 1.0.0
+        Added instance parsing support for the application.
 
     .. versionadded:: 0.1.1
         Add support for text wrapping long text messages.
@@ -306,6 +307,10 @@ def create_main_parser() -> argparse.ArgumentParser:
     .. versionchanged:: 0.1.0
         Refactor main parser's description to fit within terminal width.
         Use new function names.
+
+    :param app: ConMan application instance.
+    :return: ArgumentParser object which stores all the properties of
+             the main argument parser.
     """
     main_parser = argparse.ArgumentParser(
         prog=prog,
@@ -332,27 +337,7 @@ def create_main_parser() -> argparse.ArgumentParser:
         add_logging_options(parser)
         add_general_options(parser)
     subparsers = main_parser.add_subparsers(prog=prog)
-    parents = [parent_parser]
-    subcommand(
-        subparsers=subparsers,
-        parents=parents,
-        command="run",
-        title="Run Options",
-        usage=(
-            "%(prog)s [options] --image <image> --name <name> ...\n "
-            "%(prog)s [options] --image <image> ..."
-        ),
-        description=(
-            "Run docker containers.\n\nThis command performs `docker run` "
-            "and/or `docker start` under the hood to run a new container "
-            "or start an existing one respectively. The started containers "
-            "have attached and open STDIN, STDOUT or STDERR by default along "
-            "with pseudo-TTY allocated for the user's interaction."
-        ),
-        help="Run docker containers.",
-        configure=configure_docker_run,
-        callback=run_container,
-    )
+    subcommand(app, subparsers, parent_parser, "run")
     return main_parser
 
 
@@ -368,7 +353,8 @@ def main() -> int:
     .. versionadded:: 0.1.0
         Add support for ``--help`` based help function.
     """
-    parser = create_main_parser()
+    app = ConMan()
+    parser = create_main_parser(app)
     args, rest = parser.parse_known_args()
     log_options = {
         "fmt": args.log_format,
@@ -380,20 +366,20 @@ def main() -> int:
         "skip_logging": args.no_output,
         "color": args.no_color,
     }
-    logger = basic_config(**log_options)
-    logger.debug(f"Python version: {sys.version}")
-    logger.debug(f"Start command for ConMan: {' '.join(sys.argv)}")
+    log = app.logger(**log_options)
+    log.debug(f"Python version: {sys.version}")
     if len(rest) == 1 and "-h" in rest:
         # This is to avoid any conflicts with docker's existing command
         # line arguments. By default, a few of the docker commands
         # use ``-h`` for their internal working.
         sys.stderr.write("ConMan doesn't support -h, did you mean --help?\n")
         return 1
+    app.start()
     if hasattr(args, "callback"):
         try:
             args.callback(args, rest)
         except UnboundLocalError:
-            logger.error("No arguments passed to the command")
+            log.error("No arguments passed to the command")
             return 1
     else:
         parser.print_help()
