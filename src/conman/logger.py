@@ -1,4 +1,8 @@
-"""Log ConMan's messages.
+"""\
+ConMan logging API
+==================
+
+Log ConMan's messages.
 
 The robust event logging system used by ConMan is written in this
 module along with an assortment of related functions and classes. The
