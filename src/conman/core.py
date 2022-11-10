@@ -160,6 +160,9 @@ class Command(abc.ABC):
     """The base command class which implements the minimal API
     abstractions for rest of the commands.
 
+    .. versionchanged:: 1.0.1
+        Avoid exploiting ``__call__`` by using another method.
+
     .. versionadded:: 1.0.0
         Added support for abstracting commands, thereby reducing code
         duplication and increasing code extension.
@@ -179,11 +182,17 @@ class Command(abc.ABC):
         """Maintain record of all the commands."""
         _commands[cls.__name__.lower()] = cls
 
-    @abc.abstractmethod
     def __call__(
         self, argv: argparse.Namespace, options: list[str]
     ) -> t.NoReturn:
         """Implement ``__call__`` implicitly."""
+        self.execute(argv, options)
+
+    @abc.abstractmethod
+    def execute(
+        self, argv: argparse.Namespace, options: list[str]
+    ) -> t.NoReturn:
+        """Implement ``execute`` implicitly."""
         raise NotImplementedError
 
     @abc.abstractclassmethod
@@ -228,23 +237,31 @@ class Run(Command):
     )
     help: str = "Run docker containers."
 
-    def __call__(
+    def execute(
         self, argv: argparse.Namespace, options: list[str]
     ) -> t.NoReturn:
         """Run a docker container.
+
+        .. versionchanged:: 1.0.1
+            Image argument is checked later now. If the container
+            exists, there is no need for the image argument verification.
+
+        .. versionchanged:: 1.0.1
+            Changed ``__call__`` to ``execute`` to better fit the
+            base class's changes and minor refactor.
 
         :param argv: ArgumentParser namespace object.
         :param options: Extra docker arguments which are not natively
                         supported by this class.
         """
-        if argv.image is None:
-            sys.stderr.write("ConMan `run` requires --image argument.\n")
-            raise SystemExit(1)
         self.name = argv.name
         if self.container_exists:
             _log.info(f"Container: {self.name!r} already exists, starting...")
             cmd = ["docker", "start", "-ia", self.name]
         else:
+            if argv.image is None:
+                sys.stderr.write("ConMan `run` requires --image argument.\n")
+                raise SystemExit(1)
             if self.name is None:
                 _log.info("Spawning a temporary container...")
                 tmp_cmd = "--rm"
@@ -265,7 +282,7 @@ class Run(Command):
                 argv.command,
             ]
         cmd = list(filter(None, cmd))
-        _log.debug(f"Executing docker command: {' '.join(cmd)}")
+        _log.debug(f"Executing docker command: {' '.join(cmd)!r}...")
         os.execvp(cmd[0], cmd)
 
     @property
