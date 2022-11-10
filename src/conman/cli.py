@@ -350,6 +350,10 @@ def main() -> int:
 
     Run as standalone python application.
 
+    .. versionchanged:: 1.0.1
+        Docker daemon is now pushed in a way that it doesn't get invoked
+        when not called with commands.
+
     .. versionadded:: 0.1.0
         Add support for ``--help`` based help function.
     """
@@ -374,8 +378,8 @@ def main() -> int:
         # use ``-h`` for their internal working.
         sys.stderr.write("ConMan doesn't support -h, did you mean --help?\n")
         return 1
-    app.start()
     if hasattr(args, "callback"):
+        app.start()
         try:
             args.callback(args, rest)
         except UnboundLocalError:
