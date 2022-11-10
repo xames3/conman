@@ -507,6 +507,9 @@ def add_logging_options(
     This function accepts a parser object, preferrably provide
     the ``main_parser`` instance.
 
+    .. versionadded:: 1.0.1
+        Added defaults back to the command line options.
+
     .. deprecated:: 0.1.1
         Logging option defaults are now deprecated for datefmt, log
         level and log file path and will not show the default values.
@@ -525,30 +528,42 @@ def add_logging_options(
     )
     options.add_argument(
         "--log-datefmt",
-        help="Logging message datetime format.",
+        default=_iso8601,
+        help="Logging message datetime format (Default: %(default)s).",
         metavar="<format>",
     )
     options.add_argument(
         "--log-level",
-        help="Minimum logging level for the message.",
+        default=logging.INFO,
+        help="Minimum logging level for the message (Default: %(default)s).",
         metavar="<level>",
     )
     options.add_argument(
         "--log-path",
-        help="Absolute path for storing the output log file.",
+        default=_logfile,
+        help=(
+            "Absolute path for storing the output "
+            "log file (Default: %(default)s)."
+        ),
         metavar="<path>",
     )
     options.add_argument(
         "--max-bytes",
         default=10_000_000,
-        help="Output log file size in bytes.",
+        help=(
+            "Output log file size in bytes (Default: "
+            f"{10_000_000 / (1 << 20):,.0f} MB)."
+        ),
         metavar="<bytes>",
         type=int,
     )
     options.add_argument(
         "--backup-count",
         default=10,
-        help="Maximum number of files to archive before discarding.",
+        help=(
+            "Maximum number of files to archive before "
+            "discarding (Default: %(default)s)."
+        ),
         metavar="<count>",
         type=int,
     )
