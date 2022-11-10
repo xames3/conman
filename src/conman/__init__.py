@@ -40,7 +40,7 @@ See https://github.com/xames3/conman/ for more help.
 # According to Semantic Versioning (SemVer), major version zero (0.y.z)
 # is for initial development. Anything MAY change at any time.
 # The public API SHOULD NOT be considered stable.
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 from .cli import create_main_parser as create_main_parser
 from .cli import main as main
